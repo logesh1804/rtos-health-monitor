@@ -1,0 +1,25 @@
+{
+    "openocd": {
+        "host": "localhost",
+        "port": 4444
+    },
+    "health_struct": {
+        "address": "0x2000007C",
+        "words": 7,
+        "comment": "RTOS_Health_t base address and word count, matches main.c layout"
+    },
+    "optional_fields": {
+        "queue_level_address": null,
+        "process_stack_left_address": null,
+        "comment": "Set these once you have addresses from the .map file. Until then both default to 0 in the CSV."
+    },
+    "logging": {
+        "period_seconds": 1.0,
+        "samples": 100,
+        "out_file": "data/real_capture.csv"
+    },
+    "reconnect": {
+        "delay_seconds": 2.0,
+        "max_attempts": 5
+    }
+}

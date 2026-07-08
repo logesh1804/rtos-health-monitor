@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTOS Health Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+
+<body class="bg-gray-50 font-sans p-6 text-gray-800">
+
+    <div class="max-w-6xl mx-auto mb-6 flex justify-between items-center">
+        <div>
+            <div class="text-xs text-gray-400 font-mono">ai + embedded / RTOS health monitoring ML project</div>
+            <h1 class="text-2xl font-semibold text-gray-700 mt-1">RTOS health dashboard</h1>
+            <p class="text-xs text-gray-400 font-mono mt-0.5">STM32F411 | FreeRTOS | USART2 @ 115200</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <span
+                class="bg-green-100 text-green-700 text-xs px-2.5 py-1 rounded-full font-semibold flex items-center gap-1.5">
+                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>Live Streaming
+            </span>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-xs">
+            <div class="text-xs text-gray-400 font-medium uppercase tracking-wider">CPU load</div>
+            <div class="text-2xl font-bold text-gray-800 mt-1"><span id="cpu_load">0</span><span
+                    class="text-sm font-normal text-gray-400 ml-0.5">%</span></div>
+        </div>
+        <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-xs">
+            <div class="text-xs text-gray-400 font-medium uppercase tracking-wider">Queue level</div>
+            <div class="text-2xl font-bold text-gray-800 mt-1"><span id="queue_level">0</span><span
+                    class="text-sm font-normal text-gray-400 ml-0.5">/10</span></div>
+        </div>
+        <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-xs">
+            <div class="text-xs text-gray-400 font-medium uppercase tracking-wider">Queue dropped</div>
+            <div class="text-2xl font-bold text-gray-800 mt-1" id="queue_dropped">0</div>
+        </div>
+        <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-xs">
+            <div class="text-xs text-gray-400 font-medium uppercase tracking-wider">System Risk Level</div>
+            <div class="text-2xl font-bold text-gray-800 mt-1" id="system_risk">0%</div>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+        <div class="bg-white border border-gray-100 rounded-xl p-5 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-semibold text-gray-800 text-base">SensorTask</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Period 1000 ms | Normal</p>
+                    </div>
+                    <span id="label_sensor"
+                        class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-100">Waiting...</span>
+                </div>
+                <div class="bg-gray-50/70 rounded-lg p-3 mt-4 text-xs space-y-1.5 border border-gray-100/50">
+                    <div>Risk: <span id="risk_sensor" class="font-mono font-bold">Low</span></div>
+                    <div>Deadline misses: <span id="sensor_miss" class="font-mono">0</span></div>
+                    <div>Jitter: <span id="sensor_jitter" class="font-mono">0 ms</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-100 rounded-xl p-5 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-semibold text-gray-800 text-base">CommTask</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Period 2000 ms | BelowNormal</p>
+                    </div>
+                    <span id="label_comm"
+                        class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-100">Waiting...</span>
+                </div>
+                <div class="bg-gray-50/70 rounded-lg p-3 mt-4 text-xs space-y-1.5 border border-gray-100/50">
+                    <div>Risk: <span id="risk_comm" class="font-mono font-bold">Low</span></div>
+                    <div>Deadline misses: <span id="comm_miss" class="font-mono">0</span></div>
+                    <div>Queue Status: <span id="comm_queue" class="font-mono">0 items</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-100 rounded-xl p-5 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="font-semibold text-gray-800 text-base">ProcessTask</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Period 500 ms | AboveNormal</p>
+                    </div>
+                    <span id="label_process"
+                        class="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-100">Waiting...</span>
+                </div>
+                <div class="bg-gray-50/70 rounded-lg p-3 mt-4 text-xs space-y-1.5 border border-gray-100/50">
+                    <div>Risk: <span id="risk_process" class="font-mono font-bold">Low</span></div>
+                    <div>Exec time: <span id="proc_exec" class="font-mono">0 ms</span></div>
+                    <div>Stack left: <span id="proc_stack" class="font-mono">0 words</span></div>
+                    <div>Deadline miss: <span id="proc_miss" class="font-mono">0</span></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div
+        class="max-w-6xl mx-auto bg-gray-900 text-gray-100 rounded-xl p-5 shadow-sm font-mono text-sm border border-gray-800">
+        <div class="text-amber-400 font-bold mb-2">[AI REASONING LOGS & ROOT CAUSE DIAGNOSTICS]</div>
+        <div id="reasoning_box" class="space-y-1 text-gray-300">
+            Listening for active UART payload broadcast frames...
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+
+        ws.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+            const raw = data.raw;
+            const pred = data.prediction;
+            const tasks = pred.task_breakdown;
+
+            // Update top core metric cards
+            document.getElementById("cpu_load").innerText = raw.cpu_load;
+            document.getElementById("queue_level").innerText = raw.queue_level;
+            document.getElementById("queue_dropped").innerText = raw.queue_dropped;
+            document.getElementById("system_risk").innerText = pred.risk_pct + "%";
+
+            // Update raw individual panel counters
+            document.getElementById("sensor_miss").innerText = raw.sensor_deadline_miss;
+            document.getElementById("sensor_jitter").innerText = raw.process_jitter + " ms";
+            document.getElementById("comm_miss").innerText = raw.comm_deadline_miss;
+            document.getElementById("comm_queue").innerText = raw.queue_level + " items (Dropped: " + raw.queue_dropped + ")";
+            document.getElementById("proc_exec").innerText = raw.process_exec_time + " ms";
+            document.getElementById("proc_stack").innerText = raw.process_stack_left + " words";
+            document.getElementById("proc_miss").innerText = raw.process_deadline_miss;
+
+            // Apply style dynamically to Task Status badges
+            updateBadge("label_sensor", "risk_sensor", tasks.Sensor_Task);
+            updateBadge("label_comm", "risk_comm", tasks.Comm_Task);
+            updateBadge("label_process", "risk_process", tasks.Processing_Task);
+
+            // Print insights straight into the reasoning panel
+            const logBox = document.getElementById("reasoning_box");
+            logBox.innerHTML = "";
+
+            let hasIssues = false;
+            Object.keys(tasks).forEach(taskName => {
+                const info = tasks[taskName];
+                if (info.status !== "Healthy") {
+                    hasIssues = true;
+                    const p = document.createElement("p");
+                    p.className = info.status === "Critical" ? "text-rose-400 font-bold" : "text-amber-300";
+                    p.innerText = `> [${taskName}] Status: ${info.status} | Reason: ${info.reason}`;
+                    logBox.appendChild(p);
+
+                    if (info.possible_failure && info.possible_failure !== "None") {
+                        const pf = document.createElement("p");
+                        pf.className = "text-rose-500 font-bold ml-4 animate-pulse";
+                        pf.innerText = `  !! Possible Failure Danger: ${info.possible_failure} !!`;
+                        logBox.appendChild(pf);
+                    }
+                }
+            });
+
+            if (!hasIssues) {
+                logBox.innerHTML = `<p class="text-emerald-400">> System status nominal. All real-time constraints are verified healthy.</p>`;
+            }
+        };
+
+        function updateBadge(badgeId, riskId, taskData) {
+            const badge = document.getElementById(badgeId);
+            const riskSpan = document.getElementById(riskId);
+
+            badge.innerText = taskData.status;
+            riskSpan.innerText = taskData.risk;
+
+            if (taskData.status === "Healthy") {
+                badge.className = "text-xs px-2.5 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-600";
+                riskSpan.className = "font-mono font-bold text-emerald-600";
+            } else if (taskData.status === "Warning") {
+                badge.className = "text-xs px-2.5 py-0.5 rounded-full font-medium bg-amber-50 text-amber-600";
+                riskSpan.className = "font-mono font-bold text-amber-600";
+            } else {
+                badge.className = "text-xs px-2.5 py-0.5 rounded-full font-medium bg-rose-50 text-rose-600 animate-pulse";
+                riskSpan.className = "font-mono font-bold text-rose-600";
+            }
+        }
+    </script>
+</body>
+
+</html>

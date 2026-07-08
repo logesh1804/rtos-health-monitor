@@ -1,0 +1,16 @@
+[
+  "cpu_load",
+  "queue_level",
+  "queue_dropped",
+  "process_jitter",
+  "process_deadline_miss",
+  "process_exec_time",
+  "process_stack_left",
+  "sensor_deadline_miss",
+  "comm_deadline_miss",
+  "jitter_ratio",
+  "total_deadline_miss",
+  "queue_pressure",
+  "stack_danger",
+  "cpu_jitter_stress"
+]

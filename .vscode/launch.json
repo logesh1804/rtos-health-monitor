@@ -1,0 +1,75 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "1 – Run Full Training Pipeline",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train_pipeline.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "2 – Generate Synthetic Dataset",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/data/generate_dataset.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "3 – Train Random Forest Only",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/train_random_forest.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "4 – Train Isolation Forest Only",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/train_isolation_forest.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "5 – Predict Single Sample (JSON)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/predict_health.py",
+            "args": [
+                "--single",
+                "{\"cpu_load\":75,\"queue_level\":9,\"queue_dropped\":14,\"process_jitter\":200,\"process_deadline_miss\":8,\"process_exec_time\":350,\"process_stack_left\":180,\"sensor_deadline_miss\":6,\"comm_deadline_miss\":7}"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "6 – Batch Predict from CSV",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/predict_health.py",
+            "args": ["--csv", "data/rtos_health_data.csv"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "7 – Live UART Stream (edit port first)",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/predict_health.py",
+            "args": ["--uart", "/dev/ttyUSB0", "--baud", "115200"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "8 – Export TinyML Artefacts",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/export_tinyml.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
