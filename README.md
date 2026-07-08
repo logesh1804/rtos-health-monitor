@@ -1,188 +1,182 @@
-# AI-Assisted FreeRTOS Runtime Health Predictor
+# AI-Assisted FreeRTOS Task Health Predictor
 
-Predicts the runtime health of FreeRTOS tasks on **STM32F411** using a **Random Forest** classifier and **Isolation Forest** anomaly detector — before failure actually occurs.
+Runtime health monitoring and failure prediction for FreeRTOS tasks on an STM32F411 microcontroller. Traditional RTOS validation (stack overflow hooks, watchdog timers, deadline checks) only flags problems *after* they happen. This project collects live runtime metrics from FreeRTOS tasks and applies machine learning to predict task health — Healthy / Warning / Critical — **before** a stack overflow, deadline miss, or overload condition actually occurs.
 
 ---
 
-## Project Structure
+## Overview
+
+- **Target hardware:** STM32F411 (FreeRTOS)
+- **Tasks monitored:** SensorTask, CommTask, ProcessTask, LoggerTask
+- **Data link:** UART @ 115200 baud, CSV health metrics streamed every 3 seconds
+- **ML models:** Random Forest classifier (Healthy/Warning/Critical) + Isolation Forest anomaly detector
+- **Live visualization:** Local HTTP dashboard with per-task health cards, risk bars, and event log
+- **Bonus path:** TinyML export for on-device inference back on the STM32
+
+### Project scope
+
+| Stage | Description |
+|---|---|
+| **Basic** | Rule-based / threshold RTOS health monitor |
+| **Advanced** | AI-assisted trend-based failure prediction (this project) |
+
+---
+
+## How it works
+
+1. **Firmware** on the STM32F411 runs four FreeRTOS tasks and continuously tracks stack high-water mark, execution time, jitter, missed deadlines, queue wait/drops, and CPU load.
+2. **LoggerTask** streams this data as a 10-column CSV line over UART every 3 seconds.
+3. A Python script on the PC captures and labels this data across six fault scenarios (normal operation plus five injected fault conditions).
+4. Five derived features are engineered from the raw metrics to improve model expressiveness.
+5. A Random Forest classifier is trained to predict task health state, alongside an Isolation Forest for unsupervised anomaly detection.
+6. A local dashboard visualizes live predictions, reasons, and risk levels per task.
+
+---
+
+## Repository structure
 
 ```
 rtos_health_predictor/
-├── data/
-│   ├── generate_dataset.py     ← synthetic data generator (dev / testing)
-│   └── rtos_health_data.csv    ← your real or generated dataset
-├── models/
-│   ├── random_forest.pkl       ← trained RF classifier
-│   ├── isolation_forest.pkl    ← trained anomaly detector
-│   └── scaler.pkl              ← StandardScaler parameters
-├── plots/
-│   ├── confusion_matrix_rf.png
-│   ├── confusion_matrix_if.png
-│   ├── feature_importance.png
-│   ├── correlation_matrix.png
-│   ├── label_distribution.png
-│   ├── feature_boxplots.png
-│   └── isolation_forest_scores.png
-├── src/
-│   ├── preprocess.py           ← data loading, scaling, splitting
-│   ├── train_random_forest.py  ← RF training + evaluation
-│   ├── train_isolation_forest.py ← IF training + evaluation
-│   ├── plot_features.py        ← all visualisations
-│   ├── predict_health.py       ← inference (single / batch / UART)
-│   └── export_tinyml.py        ← C header, emlearn, TFLite export
-├── tinyml_export/
-│   ├── rtos_health_model.h     ← drop-in C header for STM32
-│   ├── emlearn_model.h         ← emlearn C code (if emlearn installed)
-│   └── model_tflite/           ← TFLite FlatBuffer + C array
-├── .vscode/
-│   ├── settings.json
-│   └── launch.json             ← 8 pre-configured run configs
-├── train_pipeline.py           ← master script – runs everything
-└── requirements.txt
+├── src/                        # Core source (firmware interface / shared modules)
+├── data/                       # Collected & labeled UART session data
+├── models/                     # Trained Random Forest / Isolation Forest models
+├── plots/                      # Training/evaluation plots
+├── tinyml_export/              # On-device inference export (C header)
+│
+├── capture_uart.py             # Captures raw UART data from the STM32
+├── label_data.py               # Programmatically labels captured sessions
+├── fix_and_retrain.py          # Corrects cumulative-counter overlap between sessions, retrains
+├── train_pipeline.py           # Full training pipeline (feature engineering → RF + Isolation Forest)
+├── predict_single.py           # Run inference on a single sample/session
+├── openocd_logger_v2.py        # UART/OpenOCD-based live logger
+├── diagnose_openocd.py         # OpenOCD connection diagnostics
+├── server.py                   # Local dashboard HTTP server (port 8765)
+├── index.html                  # Dashboard frontend
+├── requirements.txt            # Python dependencies
+└── README.md
 ```
 
 ---
 
-## Dataset Columns
+## Hardware setup
 
-| Column | Source in `main.c` | Description |
+| Metric | Source | Purpose |
 |---|---|---|
-| `cpu_load` | `CpuLoad` | CPU busy percentage |
-| `queue_level` | `uxQueueMessagesWaiting` | Items currently in SensorQueue |
-| `queue_dropped` | `QueueDropped` | Messages lost due to full queue |
-| `process_jitter` | `ProcessJitter` | Scheduling jitter of ProcessTask (ms) |
-| `process_deadline_miss` | `ProcessDeadlineMiss` | Deadline misses for ProcessTask |
-| `process_exec_time` | `ProcessExecTime` | Execution time of ProcessTask (ms) |
-| `process_stack_left` | `uxTaskGetStackHighWaterMark` | Remaining stack words |
-| `sensor_deadline_miss` | `SensorDeadlineMiss` | Deadline misses for SensorTask |
-| `comm_deadline_miss` | `CommDeadlineMiss` | Deadline misses for CommTask |
-| `health_label` | ground truth | **0** Healthy · **1** Warning · **2** Critical |
+| Stack high-water mark | `uxTaskGetStackHighWaterMark()` | Predict stack overflow risk |
+| Task execution time | Tick delta around task body | Detect task overload |
+| Task period jitter | Deviation from expected period | Detect scheduling instability |
+| Missed deadline count | Period > expected threshold | Detect real-time failure risk |
+| Queue wait / drops | `uxQueueMessagesWaiting()` | Detect communication delay/congestion |
+| CPU load | Idle task tick counting | Detect system-wide overload |
+
+**Tasks:**
+- `SensorTask` — reads sensor data, pushes to queue (1 s period)
+- `CommTask` — simulates UART/communication load (2 s period)
+- `ProcessTask` — consumes queue, computation-heavy (500 ms period)
+- `LoggerTask` — aggregates metrics, transmits CSV over UART (3 s period)
 
 ---
 
-## Quick Start
+## Fault conditions simulated
 
+Six labeled sessions were used for training data, covering both normal operation and five distinct fault types:
+
+| Fault | Injection method |
+|---|---|
+| Normal | Baseline operation |
+| CPU overload | Heavy computation loop added |
+| Deadline miss | Artificial delay in high-priority task |
+| Stack risk | Reduced task stack size |
+| Queue congestion | Producer rate > consumer rate |
+| Task starvation | Skewed task priority configuration |
+
+---
+
+## ML pipeline
+
+- **Features:** 9 raw metrics + 5 derived features (`jitter_ratio`, `total_deadline_miss`, `queue_pressure`, `stack_danger`, `cpu_jitter_stress`) = 14 total
+- **Classifier:** Random Forest (Healthy / Warning / Critical) — ~78–79% test accuracy, Warning class at 100% precision
+- **Anomaly detector:** Isolation Forest — retrained whenever the feature set changes
+- **Validation:** Cross-validation accuracy ~71%
+
+Run training:
 ```bash
-# 1. Clone / open folder in VS Code
-cd rtos_health_predictor
-
-# 2. Create virtual environment
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Run the full pipeline (generates data if CSV not found)
 python train_pipeline.py
 ```
 
-All models, plots, and TinyML artefacts are produced automatically.
-
----
-
-## Prediction Modes
-
-### Single sample (JSON)
+Run inference on a single sample:
 ```bash
-python src/predict_health.py --single \
-  '{"cpu_load":75,"queue_level":9,"queue_dropped":14,
-    "process_jitter":200,"process_deadline_miss":8,
-    "process_exec_time":350,"process_stack_left":180,
-    "sensor_deadline_miss":6,"comm_deadline_miss":7}'
+python predict_single.py
 ```
 
-### Batch prediction from CSV
+If cumulative counters overlap across capture sessions, correct and retrain with:
 ```bash
-python src/predict_health.py --csv data/rtos_health_data.csv
-# Output: data/predictions.csv
-```
-
-### Live UART stream from STM32
-```bash
-# Linux / Mac
-python src/predict_health.py --uart /dev/ttyUSB0 --baud 115200
-
-# Windows
-python src/predict_health.py --uart COM3 --baud 115200
-```
-
-The UART parser expects the `LoggerTask` format from `main.c`:
-```
-cpu_load,queue_level,queue_dropped,process_jitter,process_deadline_miss,
-process_exec_time,process_stack_left,sensor_deadline_miss,comm_deadline_miss
+python fix_and_retrain.py
 ```
 
 ---
 
-## Sample Output
+## Live dashboard
 
-```
-╔════════════════════════════════════════════════════╗
-║              RTOS RUNTIME HEALTH REPORT            ║
-╠════════════════════════════════════════════════════╣
-║  Status               Critical                     ║
-║  RF Confidence          91.5%                      ║
-║  Risk Score             92.0%                      ║
-║  Anomaly Detector     Anomaly                      ║
-║  IF Score             -0.1823                      ║
-╠════════════════════════════════════════════════════╣
-║  Probability breakdown:                            ║
-║    Healthy      3.0%  ██                           ║
-║    Warning      5.5%  █                            ║
-║    Critical    91.5%  ██████████████████           ║
-╚════════════════════════════════════════════════════╝
-```
-
----
-
-## TinyML Embedded Deployment
-
-### Option A – Rule-based C header (no library needed)
-Copy `tinyml_export/rtos_health_model.h` into your STM32 CubeIDE project:
-
-```c
-#include "rtos_health_model.h"
-
-float features[N_FEATURES] = {
-    cpu_load, queue_level, queue_dropped,
-    process_jitter, process_deadline_miss, process_exec_time,
-    process_stack_left, sensor_deadline_miss, comm_deadline_miss
-};
-
-int label = rtos_predict(features);
-// LABEL_HEALTHY=0, LABEL_WARNING=1, LABEL_CRITICAL=2
-```
-
-### Option B – emlearn (full RF, ~2 KB flash)
+Start the local dashboard server:
 ```bash
-pip install emlearn
-python src/export_tinyml.py
-# Copy tinyml_export/emlearn_model.h to STM32 project
+python server.py
 ```
+Then open `http://localhost:8765` in a browser. The dashboard shows, per task:
+- Current status (Healthy / Warning / Critical)
+- Risk level and reason text
+- Live metric trends
+- Predicted failure type
+- Event log of state transitions
 
-### Option C – TensorFlow Lite Micro (X-CUBE-AI compatible)
+---
+
+## Data collection workflow
+
 ```bash
-pip install tensorflow
-python src/export_tinyml.py
-# Use tinyml_export/model_tflite/rtos_health.tflite with X-CUBE-AI
+# 1. Capture raw UART session data
+python capture_uart.py
+
+# 2. Label the captured session by fault type
+python label_data.py
+
+# 3. Train / retrain the models
+python train_pipeline.py
 ```
 
 ---
 
-## Extending to Real Hardware Data
+## Setup
 
-1. Flash `main.c` to your STM32F411 board.
-2. Open a serial terminal at 115200 baud.
-3. Collect CSV logs and replace `data/rtos_health_data.csv`.
-4. Add ground-truth labels (manual or via fault injection described in the project doc).
-5. Re-run `python train_pipeline.py` — everything updates automatically.
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows PowerShell
+pip install -r requirements.txt
+```
+
+Connect the STM32F411 via UART (historically enumerated as COM13–COM15 on Windows) at 115200 baud.
 
 ---
 
-## Hardware
+## Key findings
 
-- **MCU**: STM32F411 (Black Pill / Nucleo-F411RE)
-- **RTOS**: FreeRTOS via CMSIS-RTOS v2
-- **Interface**: USART2 @ 115200 baud (PA2/PA3)
-- **Toolchain**: STM32CubeIDE + HAL drivers
+- Multi-feature pattern recognition across all metrics simultaneously outperforms single-threshold checks — this is the core advantage of the ML approach over classic rule-based validation.
+- Real hardware data is noisier than simulated data; cumulative UART counters can overlap between capture sessions and need explicit correction before retraining.
+- Labeled fault diversity (six distinct conditions) was necessary to get meaningful separation between Warning and Critical classes.
+- Feature engineering (the 5 derived features) measurably improved model expressiveness over raw metrics alone.
+
+---
+
+## Roadmap
+
+- [ ] Improve cross-validation accuracy beyond ~71%
+- [ ] TinyML export refinement for on-device inference back on STM32CubeIDE
+- [ ] Additional fault scenario coverage
+- [ ] Documentation polish for final submission
+
+---
+
+## Author
+
+**Logesh** — ECE student
+Project: *AI-Assisted FreeRTOS Task Health Prediction*
